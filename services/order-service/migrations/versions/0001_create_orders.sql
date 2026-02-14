@@ -1,6 +1,7 @@
 CREATE TABLE IF NOT EXISTS orders (
     id INTEGER PRIMARY KEY,
     order_id VARCHAR(36) NOT NULL UNIQUE,
+    correlation_id VARCHAR(36) NOT NULL,
     customer_id VARCHAR(128) NOT NULL,
     idempotency_key VARCHAR(128) NOT NULL UNIQUE,
     status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
