@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from uuid import UUID
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, status
 from sqlalchemy import select
 
 from db import engine, get_session
+from kafka_producer import KafkaProducerClient
 from models import Base, Order
 from schemas import CreateOrderRequest, CreateOrderResponse
+from shared.event_schemas import OrderCreatedPayload, build_event
 
 app = FastAPI(title="ledger-order-service", version="0.1.0")
+producer = KafkaProducerClient()
 
 
 @app.on_event("startup")
@@ -53,6 +57,14 @@ def create_order(payload: CreateOrderRequest) -> CreateOrderResponse:
         )
         session.add(order)
         session.flush()
+
+        event_payload = OrderCreatedPayload(
+            order_id=order.order_id,
+            customer_id=order.customer_id,
+            items=[item.model_dump() for item in payload.items],
+        ).model_dump()
+        event = build_event("OrderCreated", correlation_id=UUID(order.correlation_id), payload=event_payload)
+        producer.publish(topic="order.created", key=order.order_id, payload=event.model_dump(mode="json"))
 
         return CreateOrderResponse(
             order_id=order.order_id,
