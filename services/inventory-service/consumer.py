@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import json
 import os
 from typing import Any
+from uuid import UUID
 
 from sqlalchemy import select
 
 from db import get_session
+from kafka_producer import KafkaProducerClient
 from models import InventoryReservation, InventoryStock
+from shared.event_schemas import build_event
 
 
 class InventoryConsumer:
@@ -15,6 +19,7 @@ class InventoryConsumer:
         self.topic = topic
         self.group_id = group_id
         self._consumer = None
+        self._producer = KafkaProducerClient(broker=self.broker)
 
     def _ensure(self) -> Any:
         if self._consumer is not None:
@@ -72,3 +77,38 @@ class InventoryConsumer:
             )
             session.add(reservation)
             return status
+
+    def handle_message(self, raw_message: bytes | str) -> str:
+        if isinstance(raw_message, bytes):
+            decoded = raw_message.decode("utf-8")
+        else:
+            decoded = raw_message
+
+        body = json.loads(decoded)
+        payload = body.get("payload", {})
+        items = payload.get("items", [])
+        if not items:
+            raise ValueError("OrderCreated payload must include at least one item")
+
+        first = items[0]
+        order_id = payload["order_id"]
+        sku = first["sku"]
+        qty = int(first["qty"])
+        status = self.reserve_stock(order_id=order_id, sku=sku, qty=qty)
+
+        event_type = "InventoryReserved" if status == "RESERVED" else "InventoryReservationFailed"
+        topic = "inventory.reserved" if status == "RESERVED" else "inventory.reservation-failed"
+
+        event_payload = {
+            "order_id": order_id,
+            "sku": sku,
+            "qty": qty,
+            "status": status,
+        }
+        envelope = build_event(
+            event_type=event_type,
+            correlation_id=UUID(body["correlation_id"]),
+            payload=event_payload,
+        )
+        self._producer.publish(topic=topic, key=order_id, payload=envelope.model_dump(mode="json"))
+        return status
