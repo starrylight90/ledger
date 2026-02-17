@@ -47,6 +47,17 @@ class InventoryConsumer:
         consumer = self._ensure()
         return consumer.poll(timeout)
 
+    def process_polled_message(self, message: Any) -> str | None:
+        if message is None:
+            return None
+
+        if message.error():
+            raise RuntimeError(str(message.error()))
+
+        status = self.handle_message(message.value())
+        self._ensure().commit(message=message, asynchronous=False)
+        return status
+
     def reserve_stock(self, order_id: str, sku: str, qty: int) -> str:
         with get_session() as session:
             existing = session.execute(
