@@ -41,3 +41,17 @@ class PaymentConsumer:
     def poll(self, timeout: float = 1.0) -> Any:
         consumer = self._ensure()
         return consumer.poll(timeout)
+
+    def should_fail_payment(self, payload: dict[str, Any]) -> bool:
+        forced_customers = {
+            value.strip()
+            for value in os.getenv("PAYMENT_FAIL_CUSTOMER_IDS", "").split(",")
+            if value.strip()
+        }
+
+        customer_id = str(payload.get("customer_id", "")).strip()
+        if customer_id and customer_id in forced_customers:
+            return True
+
+        # Explicit per-message override for deterministic test/demo flows.
+        return bool(payload.get("force_payment_failure", False))
