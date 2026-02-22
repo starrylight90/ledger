@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import json
 import os
 from typing import Any
+from uuid import UUID
+
+from kafka_producer import KafkaProducerClient
+from shared.event_schemas import build_event
 
 
 class PaymentConsumer:
@@ -15,6 +20,7 @@ class PaymentConsumer:
         self.topic = topic
         self.group_id = group_id
         self._consumer = None
+        self._producer = KafkaProducerClient(broker=self.broker)
 
     def _ensure(self) -> Any:
         if self._consumer is not None:
@@ -55,3 +61,33 @@ class PaymentConsumer:
 
         # Explicit per-message override for deterministic test/demo flows.
         return bool(payload.get("force_payment_failure", False))
+
+    def handle_message(self, raw_message: bytes | str) -> str:
+        if isinstance(raw_message, bytes):
+            decoded = raw_message.decode("utf-8")
+        else:
+            decoded = raw_message
+
+        body = json.loads(decoded)
+        payload = body.get("payload", {})
+        order_id = str(payload["order_id"])
+        failed = self.should_fail_payment(payload)
+
+        status = "FAILED" if failed else "COMPLETED"
+        event_type = "PaymentFailed" if failed else "PaymentCompleted"
+        topic = "payment.failed" if failed else "payment.completed"
+
+        outcome_payload = {
+            "order_id": order_id,
+            "customer_id": payload.get("customer_id"),
+            "status": status,
+            "reason": "deterministic-demo-failure" if failed else "ok",
+        }
+
+        event = build_event(
+            event_type=event_type,
+            correlation_id=UUID(body["correlation_id"]),
+            payload=outcome_payload,
+        )
+        self._producer.publish(topic=topic, key=order_id, payload=event.model_dump(mode="json"))
+        return status
