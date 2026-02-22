@@ -75,3 +75,8 @@ class OrderStatusConsumer:
             return self.update_order_status(order_id=order_id, status="CANCELLED")
 
         return False
+
+
+class OrderCancelledConsumer(OrderStatusConsumer):
+    def __init__(self, broker: str | None = None, group_id: str = "order-service") -> None:
+        super().__init__(broker=broker, topic="order.cancelled", group_id=group_id)
