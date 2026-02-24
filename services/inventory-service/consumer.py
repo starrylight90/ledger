@@ -123,3 +123,39 @@ class InventoryConsumer:
         )
         self._producer.publish(topic=topic, key=order_id, payload=envelope.model_dump(mode="json"))
         return status
+
+    def restore_reservation(self, order_id: str) -> bool:
+        with get_session() as session:
+            reservation = session.execute(
+                select(InventoryReservation).where(InventoryReservation.order_id == order_id)
+            ).scalar_one_or_none()
+            if reservation is None:
+                return False
+
+            if reservation.status != "RESERVED":
+                return True
+
+            stock = session.execute(
+                select(InventoryStock).where(InventoryStock.sku == reservation.sku)
+            ).scalar_one_or_none()
+            if stock is None:
+                stock = InventoryStock(sku=reservation.sku, quantity_available=0)
+                session.add(stock)
+                session.flush()
+
+            stock.quantity_available += reservation.qty
+            reservation.status = "RELEASED"
+            session.add(stock)
+            session.add(reservation)
+            return True
+
+    def handle_payment_failed_message(self, raw_message: bytes | str) -> bool:
+        if isinstance(raw_message, bytes):
+            decoded = raw_message.decode("utf-8")
+        else:
+            decoded = raw_message
+
+        body = json.loads(decoded)
+        payload = body.get("payload", {})
+        order_id = str(payload["order_id"])
+        return self.restore_reservation(order_id)
