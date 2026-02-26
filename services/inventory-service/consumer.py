@@ -158,4 +158,19 @@ class InventoryConsumer:
         body = json.loads(decoded)
         payload = body.get("payload", {})
         order_id = str(payload["order_id"])
-        return self.restore_reservation(order_id)
+        restored = self.restore_reservation(order_id)
+        if not restored:
+            return False
+
+        compensating_payload = {
+            "order_id": order_id,
+            "reason": "payment-failed-compensation",
+            "source": "inventory-service",
+        }
+        envelope = build_event(
+            event_type="OrderCancelled",
+            correlation_id=UUID(body["correlation_id"]),
+            payload=compensating_payload,
+        )
+        self._producer.publish(topic="order.cancelled", key=order_id, payload=envelope.model_dump(mode="json"))
+        return True
