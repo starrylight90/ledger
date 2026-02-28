@@ -5,7 +5,11 @@ import os
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy import select
+
+from db import get_session
 from kafka_producer import KafkaProducerClient
+from models import ProcessedPaymentEvent
 from shared.event_schemas import build_event
 
 
@@ -62,6 +66,17 @@ class PaymentConsumer:
         # Explicit per-message override for deterministic test/demo flows.
         return bool(payload.get("force_payment_failure", False))
 
+    def _is_processed(self, event_id: str) -> bool:
+        with get_session() as session:
+            existing = session.execute(
+                select(ProcessedPaymentEvent).where(ProcessedPaymentEvent.event_id == event_id)
+            ).scalar_one_or_none()
+            return existing is not None
+
+    def _mark_processed(self, event_id: str, event_type: str) -> None:
+        with get_session() as session:
+            session.add(ProcessedPaymentEvent(event_id=event_id, event_type=event_type))
+
     def handle_message(self, raw_message: bytes | str) -> str:
         if isinstance(raw_message, bytes):
             decoded = raw_message.decode("utf-8")
@@ -69,6 +84,10 @@ class PaymentConsumer:
             decoded = raw_message
 
         body = json.loads(decoded)
+        event_id = str(body.get("event_id", ""))
+        if event_id and self._is_processed(event_id):
+            return "DUPLICATE"
+
         payload = body.get("payload", {})
         order_id = str(payload["order_id"])
         failed = self.should_fail_payment(payload)
@@ -90,4 +109,6 @@ class PaymentConsumer:
             payload=outcome_payload,
         )
         self._producer.publish(topic=topic, key=order_id, payload=event.model_dump(mode="json"))
+        if event_id:
+            self._mark_processed(event_id=event_id, event_type=event_type)
         return status

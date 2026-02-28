@@ -4,8 +4,10 @@ import json
 import os
 from typing import Any
 
+from sqlalchemy import select
+
 from db import get_session
-from models import NotificationLog
+from models import NotificationLog, ProcessedNotificationEvent
 
 
 class NotificationConsumer:
@@ -53,6 +55,15 @@ class NotificationConsumer:
             decoded = raw_message
 
         body = json.loads(decoded)
+        event_id = str(body.get("event_id", ""))
+        if event_id:
+            with get_session() as session:
+                existing = session.execute(
+                    select(ProcessedNotificationEvent).where(ProcessedNotificationEvent.event_id == event_id)
+                ).scalar_one_or_none()
+                if existing is not None:
+                    return existing.id
+
         payload = body.get("payload", {})
         order_id = str(payload.get("order_id", "unknown"))
         event_type = str(body.get("event_type", "unknown"))
@@ -65,6 +76,8 @@ class NotificationConsumer:
             message = f"Order {order_id} received terminal event {event_type}."
 
         with get_session() as session:
+            if event_id:
+                session.add(ProcessedNotificationEvent(event_id=event_id, event_type=event_type))
             notification = NotificationLog(
                 order_id=order_id,
                 event_type=event_type,

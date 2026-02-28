@@ -21,3 +21,12 @@ class Order(Base):
     idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="PENDING")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC))
+
+
+class ProcessedOrderEvent(Base):
+    __tablename__ = "processed_order_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    event_id: Mapped[str] = mapped_column(String(36), nullable=False, unique=True)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC))

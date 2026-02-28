@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from db import get_session
 from kafka_producer import KafkaProducerClient
-from models import InventoryReservation, InventoryStock
+from models import InventoryReservation, InventoryStock, ProcessedInventoryEvent
 from shared.event_schemas import build_event
 
 
@@ -89,6 +89,17 @@ class InventoryConsumer:
             session.add(reservation)
             return status
 
+    def _is_processed(self, event_id: str) -> bool:
+        with get_session() as session:
+            existing = session.execute(
+                select(ProcessedInventoryEvent).where(ProcessedInventoryEvent.event_id == event_id)
+            ).scalar_one_or_none()
+            return existing is not None
+
+    def _mark_processed(self, event_id: str, event_type: str) -> None:
+        with get_session() as session:
+            session.add(ProcessedInventoryEvent(event_id=event_id, event_type=event_type))
+
     def handle_message(self, raw_message: bytes | str) -> str:
         if isinstance(raw_message, bytes):
             decoded = raw_message.decode("utf-8")
@@ -96,6 +107,11 @@ class InventoryConsumer:
             decoded = raw_message
 
         body = json.loads(decoded)
+        event_id = str(body.get("event_id", ""))
+        event_type = str(body.get("event_type", "OrderCreated"))
+        if event_id and self._is_processed(event_id):
+            return "DUPLICATE"
+
         payload = body.get("payload", {})
         items = payload.get("items", [])
         if not items:
@@ -122,6 +138,8 @@ class InventoryConsumer:
             payload=event_payload,
         )
         self._producer.publish(topic=topic, key=order_id, payload=envelope.model_dump(mode="json"))
+        if event_id:
+            self._mark_processed(event_id=event_id, event_type=event_type)
         return status
 
     def restore_reservation(self, order_id: str) -> bool:
@@ -156,6 +174,10 @@ class InventoryConsumer:
             decoded = raw_message
 
         body = json.loads(decoded)
+        event_id = str(body.get("event_id", ""))
+        if event_id and self._is_processed(event_id):
+            return True
+
         payload = body.get("payload", {})
         order_id = str(payload["order_id"])
         restored = self.restore_reservation(order_id)
@@ -173,4 +195,6 @@ class InventoryConsumer:
             payload=compensating_payload,
         )
         self._producer.publish(topic="order.cancelled", key=order_id, payload=envelope.model_dump(mode="json"))
+        if event_id:
+            self._mark_processed(event_id=event_id, event_type="PaymentFailed")
         return True

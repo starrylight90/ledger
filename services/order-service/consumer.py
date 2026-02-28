@@ -7,7 +7,7 @@ from typing import Any
 from sqlalchemy import select
 
 from db import get_session
-from models import Order
+from models import Order, ProcessedOrderEvent
 
 
 class OrderStatusConsumer:
@@ -58,6 +58,17 @@ class OrderStatusConsumer:
             session.add(order)
             return True
 
+    def _is_processed(self, event_id: str) -> bool:
+        with get_session() as session:
+            existing = session.execute(
+                select(ProcessedOrderEvent).where(ProcessedOrderEvent.event_id == event_id)
+            ).scalar_one_or_none()
+            return existing is not None
+
+    def _mark_processed(self, event_id: str, event_type: str) -> None:
+        with get_session() as session:
+            session.add(ProcessedOrderEvent(event_id=event_id, event_type=event_type))
+
     def handle_message(self, raw_message: bytes | str) -> bool:
         if isinstance(raw_message, bytes):
             decoded = raw_message.decode("utf-8")
@@ -68,13 +79,21 @@ class OrderStatusConsumer:
         payload = body.get("payload", {})
         order_id = str(payload["order_id"])
         event_type = str(body.get("event_type", ""))
+        event_id = str(body.get("event_id", ""))
 
+        if event_id and self._is_processed(event_id):
+            return True
+
+        updated = False
         if event_type == "PaymentCompleted":
-            return self.update_order_status(order_id=order_id, status="CONFIRMED")
-        if event_type == "OrderCancelled":
-            return self.update_order_status(order_id=order_id, status="CANCELLED")
+            updated = self.update_order_status(order_id=order_id, status="CONFIRMED")
+        elif event_type == "OrderCancelled":
+            updated = self.update_order_status(order_id=order_id, status="CANCELLED")
 
-        return False
+        if updated and event_id:
+            self._mark_processed(event_id=event_id, event_type=event_type)
+
+        return updated
 
 
 class OrderCancelledConsumer(OrderStatusConsumer):
