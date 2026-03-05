@@ -12,8 +12,9 @@ def _load_module(module_name: str, file_path: Path):
     service_dir = str(file_path.parent)
     for local_name in ("db", "models", "schemas", "consumer", "kafka_producer"):
         sys.modules.pop(local_name, None)
-    if service_dir not in sys.path:
-        sys.path.insert(0, service_dir)
+    if service_dir in sys.path:
+        sys.path.remove(service_dir)
+    sys.path.insert(0, service_dir)
 
     spec = importlib.util.spec_from_file_location(module_name, file_path)
     module = importlib.util.module_from_spec(spec)

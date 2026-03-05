@@ -128,6 +128,7 @@ class InventoryConsumer:
 
         event_payload = {
             "order_id": order_id,
+            "customer_id": payload.get("customer_id"),
             "sku": sku,
             "qty": qty,
             "status": status,
