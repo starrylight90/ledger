@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from typing import Any
 from uuid import UUID
@@ -10,7 +11,11 @@ from sqlalchemy import select
 from db import get_session
 from kafka_producer import KafkaProducerClient
 from models import ProcessedPaymentEvent
+from shared.error_classification import FailureKind, classify_error
 from shared.event_schemas import build_event
+from shared.retry_policy import RetryPolicy, retry_with_backoff
+
+logger = logging.getLogger(__name__)
 
 
 class PaymentConsumer:
@@ -51,6 +56,31 @@ class PaymentConsumer:
     def poll(self, timeout: float = 1.0) -> Any:
         consumer = self._ensure()
         return consumer.poll(timeout)
+
+    def process_polled_message(self, message: Any) -> str | None:
+        if message is None:
+            return None
+
+        if message.error():
+            raise RuntimeError(str(message.error()))
+
+        policy = RetryPolicy(max_attempts=int(os.getenv("CONSUMER_MAX_ATTEMPTS", "4")))
+        status = retry_with_backoff(
+            lambda: self.handle_message(message.value()),
+            policy=policy,
+            should_retry=lambda exc: classify_error(exc) == FailureKind.TRANSIENT,
+            on_retry=lambda attempt, delay, exc: logger.warning(
+                "payment_consumer_retry",
+                extra={
+                    "attempt": attempt,
+                    "delay_seconds": delay,
+                    "error": str(exc),
+                    "failure_kind": classify_error(exc).value,
+                },
+            ),
+        )
+        self._ensure().commit(message=message, asynchronous=False)
+        return status
 
     def should_fail_payment(self, payload: dict[str, Any]) -> bool:
         forced_customers = {

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from typing import Any
 
@@ -8,6 +9,10 @@ from sqlalchemy import select
 
 from db import get_session
 from models import Order, ProcessedOrderEvent
+from shared.error_classification import FailureKind, classify_error
+from shared.retry_policy import RetryPolicy, retry_with_backoff
+
+logger = logging.getLogger(__name__)
 
 
 class OrderStatusConsumer:
@@ -47,6 +52,31 @@ class OrderStatusConsumer:
     def poll(self, timeout: float = 1.0) -> Any:
         consumer = self._ensure()
         return consumer.poll(timeout)
+
+    def process_polled_message(self, message: Any) -> bool | None:
+        if message is None:
+            return None
+
+        if message.error():
+            raise RuntimeError(str(message.error()))
+
+        policy = RetryPolicy(max_attempts=int(os.getenv("CONSUMER_MAX_ATTEMPTS", "4")))
+        updated = retry_with_backoff(
+            lambda: self.handle_message(message.value()),
+            policy=policy,
+            should_retry=lambda exc: classify_error(exc) == FailureKind.TRANSIENT,
+            on_retry=lambda attempt, delay, exc: logger.warning(
+                "order_consumer_retry",
+                extra={
+                    "attempt": attempt,
+                    "delay_seconds": delay,
+                    "error": str(exc),
+                    "failure_kind": classify_error(exc).value,
+                },
+            ),
+        )
+        self._ensure().commit(message=message, asynchronous=False)
+        return updated
 
     def update_order_status(self, order_id: str, status: str) -> bool:
         with get_session() as session:
