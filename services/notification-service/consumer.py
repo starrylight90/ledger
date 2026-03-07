@@ -9,8 +9,9 @@ from sqlalchemy import select
 
 from db import get_session
 from models import NotificationLog, ProcessedNotificationEvent
+from shared.dlq_publisher import DLQPublisher
 from shared.error_classification import FailureKind, classify_error
-from shared.retry_policy import RetryPolicy, retry_with_backoff
+from shared.retry_policy import RetryExhaustedError, RetryPolicy, retry_with_backoff
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ class NotificationConsumer:
         self.topics = topics or ["payment.completed", "order.cancelled"]
         self.group_id = group_id
         self._consumer = None
+        self._dlq = DLQPublisher(broker=self.broker)
 
     def _ensure(self) -> Any:
         if self._consumer is not None:
@@ -61,22 +63,49 @@ class NotificationConsumer:
             raise RuntimeError(str(message.error()))
 
         policy = RetryPolicy(max_attempts=int(os.getenv("CONSUMER_MAX_ATTEMPTS", "4")))
-        result = retry_with_backoff(
-            lambda: self.handle_message(message.value()),
-            policy=policy,
-            should_retry=lambda exc: classify_error(exc) == FailureKind.TRANSIENT,
-            on_retry=lambda attempt, delay, exc: logger.warning(
-                "notification_consumer_retry",
-                extra={
-                    "attempt": attempt,
-                    "delay_seconds": delay,
-                    "error": str(exc),
-                    "failure_kind": classify_error(exc).value,
-                },
-            ),
-        )
-        self._ensure().commit(message=message, asynchronous=False)
-        return result
+        try:
+            result = retry_with_backoff(
+                lambda: self.handle_message(message.value()),
+                policy=policy,
+                should_retry=lambda exc: classify_error(exc) == FailureKind.TRANSIENT,
+                on_retry=lambda attempt, delay, exc: logger.warning(
+                    "notification_consumer_retry",
+                    extra={
+                        "attempt": attempt,
+                        "delay_seconds": delay,
+                        "error": str(exc),
+                        "failure_kind": classify_error(exc).value,
+                    },
+                ),
+            )
+            self._ensure().commit(message=message, asynchronous=False)
+            return result
+        except RetryExhaustedError as exhausted:
+            raw_value = message.value()
+            if isinstance(raw_value, bytes):
+                decoded = raw_value.decode("utf-8", errors="replace")
+            else:
+                decoded = str(raw_value)
+
+            try:
+                payload = json.loads(decoded)
+            except json.JSONDecodeError:
+                payload = {"raw": decoded}
+
+            key = str(payload.get("payload", {}).get("order_id", "unknown"))
+            source_topic = self.topics[0]
+            if hasattr(message, "topic"):
+                source_topic = str(message.topic())
+
+            self._dlq.publish(
+                source_topic=source_topic,
+                key=key,
+                original_payload=payload,
+                failure_reason=str(exhausted.last_error),
+                retry_count=exhausted.attempts,
+            )
+            self._ensure().commit(message=message, asynchronous=False)
+            return None
 
     def handle_message(self, raw_message: bytes | str) -> int:
         if isinstance(raw_message, bytes):

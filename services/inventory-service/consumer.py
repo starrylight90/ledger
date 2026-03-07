@@ -11,9 +11,10 @@ from sqlalchemy import select
 from db import get_session
 from kafka_producer import KafkaProducerClient
 from models import InventoryReservation, InventoryStock, ProcessedInventoryEvent
+from shared.dlq_publisher import DLQPublisher
 from shared.error_classification import FailureKind, classify_error
 from shared.event_schemas import build_event
-from shared.retry_policy import RetryPolicy, retry_with_backoff
+from shared.retry_policy import RetryExhaustedError, RetryPolicy, retry_with_backoff
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ class InventoryConsumer:
         self.group_id = group_id
         self._consumer = None
         self._producer = KafkaProducerClient(broker=self.broker)
+        self._dlq = DLQPublisher(broker=self.broker)
 
     def _ensure(self) -> Any:
         if self._consumer is not None:
@@ -60,22 +62,45 @@ class InventoryConsumer:
             raise RuntimeError(str(message.error()))
 
         policy = RetryPolicy(max_attempts=int(os.getenv("CONSUMER_MAX_ATTEMPTS", "4")))
-        status = retry_with_backoff(
-            lambda: self.handle_message(message.value()),
-            policy=policy,
-            should_retry=lambda exc: classify_error(exc) == FailureKind.TRANSIENT,
-            on_retry=lambda attempt, delay, exc: logger.warning(
-                "inventory_consumer_retry",
-                extra={
-                    "attempt": attempt,
-                    "delay_seconds": delay,
-                    "error": str(exc),
-                    "failure_kind": classify_error(exc).value,
-                },
-            ),
-        )
-        self._ensure().commit(message=message, asynchronous=False)
-        return status
+        try:
+            status = retry_with_backoff(
+                lambda: self.handle_message(message.value()),
+                policy=policy,
+                should_retry=lambda exc: classify_error(exc) == FailureKind.TRANSIENT,
+                on_retry=lambda attempt, delay, exc: logger.warning(
+                    "inventory_consumer_retry",
+                    extra={
+                        "attempt": attempt,
+                        "delay_seconds": delay,
+                        "error": str(exc),
+                        "failure_kind": classify_error(exc).value,
+                    },
+                ),
+            )
+            self._ensure().commit(message=message, asynchronous=False)
+            return status
+        except RetryExhaustedError as exhausted:
+            raw_value = message.value()
+            if isinstance(raw_value, bytes):
+                decoded = raw_value.decode("utf-8", errors="replace")
+            else:
+                decoded = str(raw_value)
+
+            try:
+                payload = json.loads(decoded)
+            except json.JSONDecodeError:
+                payload = {"raw": decoded}
+
+            key = str(payload.get("payload", {}).get("order_id", "unknown"))
+            self._dlq.publish(
+                source_topic=self.topic,
+                key=key,
+                original_payload=payload,
+                failure_reason=str(exhausted.last_error),
+                retry_count=exhausted.attempts,
+            )
+            self._ensure().commit(message=message, asynchronous=False)
+            return "DLQ"
 
     def reserve_stock(self, order_id: str, sku: str, qty: int) -> str:
         with get_session() as session:
