@@ -6,16 +6,26 @@ from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
 from sqlalchemy import select
 
 from db import engine, get_session
 from kafka_producer import KafkaProducerClient
 from models import Base, Order
 from schemas import CreateOrderRequest, CreateOrderResponse
+from shared.dlq_inspector import build_replay_payload, parse_dlq_record, replay_target_topic
 from shared.event_schemas import OrderCreatedPayload, build_event
 
 app = FastAPI(title="ledger-order-service", version="0.1.0")
 producer = KafkaProducerClient()
+
+
+class DLQInspectRequest(BaseModel):
+    source_topic: str
+    failed_at: str
+    failure_reason: str
+    retry_count: int
+    original_payload: dict
 
 
 @app.on_event("startup")
@@ -123,6 +133,15 @@ def ops_dashboard() -> str:
 </body>
 </html>
 """
+
+
+@app.post("/ops/dlq/inspect")
+def inspect_dlq(payload: DLQInspectRequest) -> dict:
+    record = parse_dlq_record(payload.model_dump())
+    return {
+        "replay_topic": replay_target_topic(record),
+        "replay_payload": build_replay_payload(record),
+    }
 
 
 @app.post("/orders", response_model=CreateOrderResponse, status_code=status.HTTP_202_ACCEPTED)
