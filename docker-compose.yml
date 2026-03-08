@@ -50,6 +50,24 @@ services:
       redpanda:
         condition: service_healthy
 
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.7.1
+    container_name: ledger-schema-registry
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://redpanda:9092
+    ports:
+      - "8081:8081"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/subjects"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
   postgres:
     image: postgres:16-alpine
     container_name: ledger-postgres
