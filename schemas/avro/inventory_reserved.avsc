@@ -1,0 +1,25 @@
+{
+  "type": "record",
+  "name": "InventoryReservedEnvelope",
+  "namespace": "ledger.events",
+  "fields": [
+    {"name": "event_id", "type": "string"},
+    {"name": "event_type", "type": "string"},
+    {"name": "timestamp", "type": "string"},
+    {"name": "correlation_id", "type": "string"},
+    {
+      "name": "payload",
+      "type": {
+        "type": "record",
+        "name": "InventoryReservedPayload",
+        "fields": [
+          {"name": "order_id", "type": "string"},
+          {"name": "customer_id", "type": ["null", "string"], "default": null},
+          {"name": "sku", "type": "string"},
+          {"name": "qty", "type": "int"},
+          {"name": "status", "type": "string"}
+        ]
+      }
+    }
+  ]
+}

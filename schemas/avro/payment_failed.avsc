@@ -1,0 +1,24 @@
+{
+  "type": "record",
+  "name": "PaymentFailedEnvelope",
+  "namespace": "ledger.events",
+  "fields": [
+    {"name": "event_id", "type": "string"},
+    {"name": "event_type", "type": "string"},
+    {"name": "timestamp", "type": "string"},
+    {"name": "correlation_id", "type": "string"},
+    {
+      "name": "payload",
+      "type": {
+        "type": "record",
+        "name": "PaymentFailedPayload",
+        "fields": [
+          {"name": "order_id", "type": "string"},
+          {"name": "customer_id", "type": ["null", "string"], "default": null},
+          {"name": "status", "type": "string"},
+          {"name": "reason", "type": "string"}
+        ]
+      }
+    }
+  ]
+}

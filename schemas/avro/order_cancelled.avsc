@@ -1,0 +1,23 @@
+{
+  "type": "record",
+  "name": "OrderCancelledEnvelope",
+  "namespace": "ledger.events",
+  "fields": [
+    {"name": "event_id", "type": "string"},
+    {"name": "event_type", "type": "string"},
+    {"name": "timestamp", "type": "string"},
+    {"name": "correlation_id", "type": "string"},
+    {
+      "name": "payload",
+      "type": {
+        "type": "record",
+        "name": "OrderCancelledPayload",
+        "fields": [
+          {"name": "order_id", "type": "string"},
+          {"name": "reason", "type": ["null", "string"], "default": null},
+          {"name": "source", "type": ["null", "string"], "default": null}
+        ]
+      }
+    }
+  ]
+}

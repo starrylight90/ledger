@@ -1,0 +1,36 @@
+{
+  "type": "record",
+  "name": "OrderCreatedEnvelope",
+  "namespace": "ledger.events",
+  "fields": [
+    {"name": "event_id", "type": "string"},
+    {"name": "event_type", "type": "string"},
+    {"name": "timestamp", "type": "string"},
+    {"name": "correlation_id", "type": "string"},
+    {
+      "name": "payload",
+      "type": {
+        "type": "record",
+        "name": "OrderCreatedPayload",
+        "fields": [
+          {"name": "order_id", "type": "string"},
+          {"name": "customer_id", "type": "string"},
+          {
+            "name": "items",
+            "type": {
+              "type": "array",
+              "items": {
+                "type": "record",
+                "name": "OrderItem",
+                "fields": [
+                  {"name": "sku", "type": "string"},
+                  {"name": "qty", "type": "int"}
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
