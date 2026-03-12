@@ -4,11 +4,14 @@ import json
 import os
 from typing import Any
 
+from shared.avro_codec import AvroCodec
+
 
 class KafkaProducerClient:
     def __init__(self, broker: str | None = None) -> None:
         self._broker = broker or os.getenv("KAFKA_BROKER", "localhost:9092")
         self._producer = None
+        self._codec = AvroCodec()
 
     def _ensure(self) -> Any:
         if self._producer is not None:
@@ -26,5 +29,6 @@ class KafkaProducerClient:
 
     def publish(self, topic: str, key: str, payload: dict[str, Any]) -> None:
         producer = self._ensure()
-        producer.produce(topic=topic, key=key.encode("utf-8"), value=json.dumps(payload).encode("utf-8"))
+        serialized = self._codec.serialize_for_topic(topic, payload)
+        producer.produce(topic=topic, key=key.encode("utf-8"), value=serialized)
         producer.flush(timeout=5)
