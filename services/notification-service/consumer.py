@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from db import get_session
 from models import NotificationLog, ProcessedNotificationEvent
+from shared.avro_codec import AvroCodec
 from shared.dlq_publisher import DLQPublisher
 from shared.error_classification import FailureKind, classify_error
 from shared.retry_policy import RetryExhaustedError, RetryPolicy, retry_with_backoff
@@ -28,6 +29,7 @@ class NotificationConsumer:
         self.group_id = group_id
         self._consumer = None
         self._dlq = DLQPublisher(broker=self.broker)
+        self._codec = AvroCodec()
 
     def _ensure(self) -> Any:
         if self._consumer is not None:
@@ -64,8 +66,12 @@ class NotificationConsumer:
 
         policy = RetryPolicy(max_attempts=int(os.getenv("CONSUMER_MAX_ATTEMPTS", "4")))
         try:
+            source_topic = self.topics[0]
+            if hasattr(message, "topic"):
+                source_topic = str(message.topic())
+
             result = retry_with_backoff(
-                lambda: self.handle_message(message.value()),
+                lambda: self.handle_message(message.value(), topic=source_topic),
                 policy=policy,
                 should_retry=lambda exc: classify_error(exc) == FailureKind.TRANSIENT,
                 on_retry=lambda attempt, delay, exc: logger.warning(
@@ -107,13 +113,23 @@ class NotificationConsumer:
             self._ensure().commit(message=message, asynchronous=False)
             return None
 
-    def handle_message(self, raw_message: bytes | str) -> int:
+    def handle_message(self, raw_message: bytes | str, topic: str | None = None) -> int:
         if isinstance(raw_message, bytes):
             decoded = raw_message.decode("utf-8")
         else:
             decoded = raw_message
 
-        body = json.loads(decoded)
+        if topic is None:
+            probe = json.loads(decoded)
+            event_type = str(probe.get("event_type", ""))
+            if event_type == "PaymentCompleted":
+                topic = "payment.completed"
+            elif event_type == "OrderCancelled":
+                topic = "order.cancelled"
+            else:
+                topic = self.topics[0]
+
+        body = self._codec.deserialize_for_topic(topic, decoded)
         event_id = str(body.get("event_id", ""))
         if event_id:
             with get_session() as session:

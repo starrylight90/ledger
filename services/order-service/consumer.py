@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from db import get_session
 from models import Order, ProcessedOrderEvent
+from shared.avro_codec import AvroCodec
 from shared.dlq_publisher import DLQPublisher
 from shared.error_classification import FailureKind, classify_error
 from shared.retry_policy import RetryExhaustedError, RetryPolicy, retry_with_backoff
@@ -28,6 +29,7 @@ class OrderStatusConsumer:
         self.group_id = group_id
         self._consumer = None
         self._dlq = DLQPublisher(broker=self.broker)
+        self._codec = AvroCodec()
 
     def _ensure(self) -> Any:
         if self._consumer is not None:
@@ -130,7 +132,7 @@ class OrderStatusConsumer:
         else:
             decoded = raw_message
 
-        body = json.loads(decoded)
+        body = self._codec.deserialize_for_topic(self.topic, decoded)
         payload = body.get("payload", {})
         order_id = str(payload["order_id"])
         event_type = str(body.get("event_type", ""))

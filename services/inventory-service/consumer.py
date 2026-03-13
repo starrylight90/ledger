@@ -11,6 +11,7 @@ from sqlalchemy import select
 from db import get_session
 from kafka_producer import KafkaProducerClient
 from models import InventoryReservation, InventoryStock, ProcessedInventoryEvent
+from shared.avro_codec import AvroCodec
 from shared.dlq_publisher import DLQPublisher
 from shared.error_classification import FailureKind, classify_error
 from shared.event_schemas import build_event
@@ -27,6 +28,7 @@ class InventoryConsumer:
         self._consumer = None
         self._producer = KafkaProducerClient(broker=self.broker)
         self._dlq = DLQPublisher(broker=self.broker)
+        self._codec = AvroCodec()
 
     def _ensure(self) -> Any:
         if self._consumer is not None:
@@ -150,7 +152,7 @@ class InventoryConsumer:
         else:
             decoded = raw_message
 
-        body = json.loads(decoded)
+        body = self._codec.deserialize_for_topic(self.topic, decoded)
         event_id = str(body.get("event_id", ""))
         event_type = str(body.get("event_type", "OrderCreated"))
         if event_id and self._is_processed(event_id):
@@ -218,7 +220,7 @@ class InventoryConsumer:
         else:
             decoded = raw_message
 
-        body = json.loads(decoded)
+        body = self._codec.deserialize_for_topic("payment.failed", decoded)
         event_id = str(body.get("event_id", ""))
         if event_id and self._is_processed(event_id):
             return True
