@@ -175,19 +175,36 @@ def create_order(payload: CreateOrderRequest) -> CreateOrderResponse:
         session.add(order)
         session.flush()
 
-        event_payload = OrderCreatedPayload(
-            order_id=order.order_id,
-            customer_id=order.customer_id,
-            items=[item.model_dump() for item in payload.items],
-        ).model_dump()
-        event = build_event("OrderCreated", correlation_id=UUID(order.correlation_id), payload=event_payload)
-        producer.publish(topic="order.created", key=order.order_id, payload=event.model_dump(mode="json"))
+        order_id = order.order_id
+        correlation_id = order.correlation_id
+        created_at = order.created_at
+        idempotency_key = order.idempotency_key
 
-        return CreateOrderResponse(
-            order_id=order.order_id,
-            status="PENDING",
-            created_at=order.created_at,
-            accepted_at=now,
-            correlation_id=order.correlation_id,
-            idempotency_key=order.idempotency_key,
-        )
+    event_payload = OrderCreatedPayload(
+        order_id=order_id,
+        customer_id=payload.customer_id,
+        items=[item.model_dump() for item in payload.items],
+    ).model_dump()
+    event = build_event("OrderCreated", correlation_id=UUID(correlation_id), payload=event_payload)
+
+    try:
+        producer.publish(topic="order.created", key=order_id, payload=event.model_dump(mode="json"))
+    except Exception as exc:
+        with get_session() as session:
+            order = session.execute(select(Order).where(Order.order_id == order_id)).scalar_one_or_none()
+            if order is not None:
+                order.status = "PUBLISH_FAILED"
+                session.add(order)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Order persisted but event publish failed: {exc}",
+        ) from exc
+
+    return CreateOrderResponse(
+        order_id=order_id,
+        status="PENDING",
+        created_at=created_at,
+        accepted_at=datetime.now(UTC),
+        correlation_id=correlation_id,
+        idempotency_key=idempotency_key,
+    )
