@@ -19,6 +19,21 @@ Phase 0 establishes local infrastructure and conventions:
 - event/topic contract documentation
 - smoke test script for producer-consumer round-trip
 
+## Phase 3 Reliability Status
+
+Phase 3 introduces production-grade reliability controls:
+
+- transient-vs-poison failure classification
+- bounded retries with exponential backoff
+- per-topic dead-letter queue routing on retry exhaustion
+- schema validation on producer and consumer boundaries
+- DLQ inspection and replay planning via script and ops endpoint
+
+Key tools:
+
+- `python scripts/dlq_inspector.py --input <dlq-record.json>`
+- `POST /ops/dlq/inspect`
+
 ## Quick Start
 
 1. Copy environment template:
