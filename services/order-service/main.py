@@ -46,7 +46,7 @@ def ops_dashboard() -> str:
 <head>
     <meta charset=\"utf-8\" />
     <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
-    <title>Ledger Phase 1 Ops</title>
+    <title>Ledger Phase 3 Ops</title>
     <style>
         :root {
             --ink: #101418;
@@ -108,27 +108,43 @@ def ops_dashboard() -> str:
 </head>
 <body>
     <main class=\"wrap\">
-        <h1>Ledger Order Service - Phase 1 Ops</h1>
-        <p class=\"subtitle\">Live checkpoints for the Order -> Kafka -> Inventory reservation flow.</p>
+        <h1>Ledger Order Service - Phase 3 Ops</h1>
+        <p class="subtitle">Reliability posture for retries, DLQ routing, schema validation, and saga state.</p>
         <section class=\"grid\">
             <article class=\"card\">
-                <div class=\"label\">Order Ingress</div>
+                <div class="label">Order Ingress</div>
                 <div class=\"value\">/orders</div>
             </article>
             <article class=\"card\">
-                <div class=\"label\">Health</div>
+                <div class="label">Health</div>
                 <div class=\"value\">/health</div>
             </article>
             <article class=\"card\">
-                <div class=\"label\">Primary Topic</div>
+                <div class="label">Primary Topic</div>
                 <div class=\"value\">order.created</div>
             </article>
             <article class=\"card\">
-                <div class=\"label\">Mode</div>
-                <div class=\"value\">At-Least-Once</div>
+                <div class="label">Delivery Mode</div>
+                <div class="value">At-Least-Once</div>
+            </article>
+            <article class="card">
+                <div class="label">Retry Policy</div>
+                <div class="value">Exponential</div>
+            </article>
+            <article class="card">
+                <div class="label">DLQ Inspector</div>
+                <div class="value">/ops/dlq/inspect</div>
+            </article>
+            <article class="card">
+                <div class="label">Schema Guard</div>
+                <div class="value">Avro + Registry</div>
+            </article>
+            <article class="card">
+                <div class="label">Current Focus</div>
+                <div class="value">Reliability</div>
             </article>
         </section>
-        <div class=\"badge\">Next: Phase 2 saga choreography and compensating rollback</div>
+        <div class="badge">Next: Phase 4 gRPC boundary for synchronous stock checks</div>
     </main>
 </body>
 </html>

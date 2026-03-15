@@ -34,6 +34,12 @@ Key tools:
 - `python scripts/dlq_inspector.py --input <dlq-record.json>`
 - `POST /ops/dlq/inspect`
 
+Phase 3 docs:
+
+- `docs/phase3-reliability-runbook.md`
+- `docs/phase3-schema-versioning.md`
+- `docs/phase3-break-demo.md`
+
 ## Quick Start
 
 1. Copy environment template:
