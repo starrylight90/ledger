@@ -49,6 +49,9 @@ def test_grpc_contract_and_order_precheck_flow(tmp_path, monkeypatch):
         monkeypatch.setenv("INVENTORY_GRPC_TIMEOUT_SECONDS", "1.0")
 
         order_main = _load_module("order_main_phase4", root / "services" / "order-service" / "main.py")
+        order_models = _load_module("order_models_phase4", root / "services" / "order-service" / "models.py")
+        order_db = _load_module("order_db_phase4", root / "services" / "order-service" / "db.py")
+        order_models.Base.metadata.create_all(bind=order_db.engine)
 
         published: list[dict] = []
         monkeypatch.setattr(

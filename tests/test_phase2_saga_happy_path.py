@@ -72,6 +72,7 @@ def test_saga_happy_path_multi_service(tmp_path, monkeypatch):
         "publish",
         lambda topic, key, payload: produced_from_order.append({"topic": topic, "key": key, "payload": payload}),
     )
+    monkeypatch.setattr(order_main.inventory_grpc, "check_availability", lambda _sku, _qty: (True, 1000, "ok"))
 
     inventory_consumer = inventory_consumer_mod.InventoryConsumer()
     monkeypatch.setattr(

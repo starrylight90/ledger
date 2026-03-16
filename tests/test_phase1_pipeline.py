@@ -52,6 +52,7 @@ def test_order_to_inventory_pipeline_sqlite(tmp_path, monkeypatch):
         produced_by_order.append({"topic": topic, "key": key, "payload": payload})
 
     monkeypatch.setattr(order_main.producer, "publish", fake_publish_order)
+    monkeypatch.setattr(order_main.inventory_grpc, "check_availability", lambda _sku, _qty: (True, 1000, "ok"))
 
     client = TestClient(order_main.app)
     response = client.post(

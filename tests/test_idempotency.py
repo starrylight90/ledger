@@ -40,6 +40,7 @@ def test_duplicate_idempotency_key_returns_existing_order(tmp_path, monkeypatch)
         produced.append({"topic": topic, "key": key, "payload": payload})
 
     monkeypatch.setattr(order_main.producer, "publish", fake_publish)
+    monkeypatch.setattr(order_main.inventory_grpc, "check_availability", lambda _sku, _qty: (True, 1000, "ok"))
 
     client = TestClient(order_main.app)
     payload = {
