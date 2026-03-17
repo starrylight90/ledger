@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package ledger.inventory.v1;
+
+service InventoryService {
+  rpc CheckAvailability(CheckAvailabilityRequest) returns (CheckAvailabilityResponse);
+}
+
+message CheckAvailabilityRequest {
+  string sku = 1;
+  int32 qty = 2;
+}
+
+message CheckAvailabilityResponse {
+  bool available = 1;
+  int32 current_stock = 2;
+  string message = 3;
+}
