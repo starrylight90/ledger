@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 
 from db import engine, get_session
+from grpc_client import InventoryGrpcClient
 from kafka_producer import KafkaProducerClient
 from models import Base, Order
 from schemas import CreateOrderRequest, CreateOrderResponse
@@ -18,6 +19,7 @@ from shared.event_schemas import OrderCreatedPayload, build_event
 
 app = FastAPI(title="ledger-order-service", version="0.1.0")
 producer = KafkaProducerClient()
+inventory_grpc = InventoryGrpcClient()
 
 
 class DLQInspectRequest(BaseModel):
@@ -164,6 +166,14 @@ def inspect_dlq(payload: DLQInspectRequest) -> dict:
 def create_order(payload: CreateOrderRequest) -> CreateOrderResponse:
     if not payload.items:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="items must not be empty")
+
+    for item in payload.items:
+        available, current_stock, _message = inventory_grpc.check_availability(item.sku, item.qty)
+        if not available:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Inventory unavailable for sku={item.sku}; current_stock={current_stock}",
+            )
 
     with get_session() as session:
         existing = session.execute(
