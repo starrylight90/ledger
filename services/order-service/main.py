@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 
 from db import engine, get_session
-from grpc_client import InventoryGrpcClient
+from grpc_client import InventoryGrpcClient, InventoryGrpcUnavailableError
 from kafka_producer import KafkaProducerClient
 from models import Base, Order
 from schemas import CreateOrderRequest, CreateOrderResponse
@@ -168,11 +168,29 @@ def create_order(payload: CreateOrderRequest) -> CreateOrderResponse:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="items must not be empty")
 
     for item in payload.items:
-        available, current_stock, _message = inventory_grpc.check_availability(item.sku, item.qty)
+        try:
+            available, current_stock, message = inventory_grpc.check_availability(item.sku, item.qty)
+        except InventoryGrpcUnavailableError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "code": "inventory_grpc_unavailable",
+                    "sku": item.sku,
+                    "qty": item.qty,
+                    "message": str(exc),
+                },
+            ) from exc
+
         if not available:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Inventory unavailable for sku={item.sku}; current_stock={current_stock}",
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "inventory_not_available",
+                    "sku": item.sku,
+                    "requested_qty": item.qty,
+                    "current_stock": current_stock,
+                    "message": message,
+                },
             )
 
     with get_session() as session:
