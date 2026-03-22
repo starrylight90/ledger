@@ -40,6 +40,23 @@ Phase 3 docs:
 - `docs/phase3-schema-versioning.md`
 - `docs/phase3-break-demo.md`
 
+## Phase 4 gRPC Boundary Status
+
+Phase 4 adds a synchronous inventory precheck before order acceptance:
+
+- proto contract: `proto/inventory.proto`
+- generated stubs: `shared/grpc_generated/`
+- inventory gRPC server: `services/inventory-service/grpc_server.py`
+- order gRPC client: `services/order-service/grpc_client.py`
+- fail-fast API behavior:
+   - `409` when stock is insufficient
+   - `503` when gRPC transport is unavailable
+
+Phase 4 docs:
+
+- `docs/phase4-async-vs-rpc.md`
+- `docs/phase4-grpc-debug.md`
+
 ## Quick Start
 
 1. Copy environment template:

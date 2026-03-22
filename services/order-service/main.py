@@ -48,7 +48,7 @@ def ops_dashboard() -> str:
 <head>
     <meta charset=\"utf-8\" />
     <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
-    <title>Ledger Phase 3 Ops</title>
+    <title>Ledger Phase 4 Ops</title>
     <style>
         :root {
             --ink: #101418;
@@ -110,8 +110,8 @@ def ops_dashboard() -> str:
 </head>
 <body>
     <main class=\"wrap\">
-        <h1>Ledger Order Service - Phase 3 Ops</h1>
-        <p class="subtitle">Reliability posture for retries, DLQ routing, schema validation, and saga state.</p>
+        <h1>Ledger Order Service - Phase 4 Ops</h1>
+        <p class="subtitle">Synchronous gRPC inventory admission checks plus async Kafka workflow execution.</p>
         <section class=\"grid\">
             <article class=\"card\">
                 <div class="label">Order Ingress</div>
@@ -142,11 +142,11 @@ def ops_dashboard() -> str:
                 <div class="value">Avro + Registry</div>
             </article>
             <article class="card">
-                <div class="label">Current Focus</div>
-                <div class="value">Reliability</div>
+                <div class="label">gRPC Boundary</div>
+                <div class="value">InventoryService.CheckAvailability</div>
             </article>
         </section>
-        <div class="badge">Next: Phase 4 gRPC boundary for synchronous stock checks</div>
+        <div class="badge">Next: Phase 5 observability deepening (lag, traces, p95 latency)</div>
     </main>
 </body>
 </html>
