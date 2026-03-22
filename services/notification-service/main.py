@@ -1,17 +1,22 @@
 from __future__ import annotations
 
 from fastapi import FastAPI
+from fastapi.responses import PlainTextResponse
 
 from consumer import NotificationConsumer
 from db import engine
 from models import Base
+from shared.logging_utils import configure_json_logging
+from shared.observability import get_registry
 
 app = FastAPI(title="ledger-notification-service", version="0.1.0")
 consumer = NotificationConsumer()
+metrics = get_registry("notification-service")
 
 
 @app.on_event("startup")
 def startup() -> None:
+    configure_json_logging("notification-service")
     Base.metadata.create_all(bind=engine)
 
 
@@ -22,3 +27,8 @@ def health() -> dict[str, str]:
         "service": "notification-service",
         "topics": ",".join(consumer.topics),
     }
+
+
+@app.get("/metrics", response_class=PlainTextResponse)
+def metrics_endpoint() -> str:
+    return metrics.render_prometheus()
