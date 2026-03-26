@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 from typing import Any
 
 from sqlalchemy import select
@@ -10,8 +11,10 @@ from sqlalchemy import select
 from db import get_session
 from models import Order, ProcessedOrderEvent
 from shared.avro_codec import AvroCodec
+from shared.correlation import correlation_scope, event_correlation_id
 from shared.dlq_publisher import DLQPublisher
 from shared.error_classification import FailureKind, classify_error
+from shared.observability import get_registry
 from shared.retry_policy import RetryExhaustedError, RetryPolicy, retry_with_backoff
 
 logger = logging.getLogger(__name__)
@@ -28,8 +31,9 @@ class OrderStatusConsumer:
         self.topic = topic
         self.group_id = group_id
         self._consumer = None
-        self._dlq = DLQPublisher(broker=self.broker)
+        self._dlq = DLQPublisher(broker=self.broker, service_name="order-service")
         self._codec = AvroCodec()
+        self._metrics = get_registry("order-service")
 
     def _ensure(self) -> Any:
         if self._consumer is not None:
@@ -64,6 +68,9 @@ class OrderStatusConsumer:
         if message.error():
             raise RuntimeError(str(message.error()))
 
+        self._record_consumer_lag(message)
+        started = time.perf_counter()
+
         policy = RetryPolicy(max_attempts=int(os.getenv("CONSUMER_MAX_ATTEMPTS", "4")))
         try:
             updated = retry_with_backoff(
@@ -81,6 +88,11 @@ class OrderStatusConsumer:
                 ),
             )
             self._ensure().commit(message=message, asynchronous=False)
+            self._metrics.counter_inc(
+                "ledger_consume_total",
+                labels={"topic": self.topic, "result": "success"},
+                description="Total consumed events by topic and result",
+            )
             return updated
         except RetryExhaustedError as exhausted:
             raw_value = message.value()
@@ -103,7 +115,44 @@ class OrderStatusConsumer:
                 retry_count=exhausted.attempts,
             )
             self._ensure().commit(message=message, asynchronous=False)
+            self._metrics.counter_inc(
+                "ledger_consume_total",
+                labels={"topic": self.topic, "result": "dlq"},
+                description="Total consumed events by topic and result",
+            )
             return False
+        finally:
+            self._metrics.histogram_observe(
+                "ledger_consume_latency_ms",
+                value=(time.perf_counter() - started) * 1000.0,
+                labels={"topic": self.topic},
+                description="Kafka consume processing latency in milliseconds",
+            )
+
+    def _record_consumer_lag(self, message: Any) -> None:
+        if not hasattr(message, "topic") or not hasattr(message, "partition") or not hasattr(message, "offset"):
+            return
+
+        if self._consumer is None or not hasattr(self._consumer, "get_watermark_offsets"):
+            return
+
+        try:
+            from confluent_kafka import TopicPartition
+        except ImportError:
+            return
+
+        try:
+            tp = TopicPartition(message.topic(), message.partition())
+            _low, high = self._consumer.get_watermark_offsets(tp, timeout=1.0)
+            lag = max(0, int(high) - int(message.offset()) - 1)
+            self._metrics.gauge_set(
+                "ledger_consumer_lag",
+                float(lag),
+                labels={"topic": message.topic(), "partition": str(message.partition())},
+                description="Estimated consumer lag by topic and partition",
+            )
+        except Exception:
+            return
 
     def update_order_status(self, order_id: str, status: str) -> bool:
         with get_session() as session:
@@ -137,20 +186,27 @@ class OrderStatusConsumer:
         order_id = str(payload["order_id"])
         event_type = str(body.get("event_type", ""))
         event_id = str(body.get("event_id", ""))
+        correlation_id = event_correlation_id(body)
 
-        if event_id and self._is_processed(event_id):
-            return True
+        with correlation_scope(correlation_id):
+            if event_id and self._is_processed(event_id):
+                logger.info("order_consumer_duplicate", extra={"extra_fields": {"event_id": event_id, "order_id": order_id}})
+                return True
 
-        updated = False
-        if event_type == "PaymentCompleted":
-            updated = self.update_order_status(order_id=order_id, status="CONFIRMED")
-        elif event_type == "OrderCancelled":
-            updated = self.update_order_status(order_id=order_id, status="CANCELLED")
+            updated = False
+            if event_type == "PaymentCompleted":
+                updated = self.update_order_status(order_id=order_id, status="CONFIRMED")
+            elif event_type == "OrderCancelled":
+                updated = self.update_order_status(order_id=order_id, status="CANCELLED")
 
-        if updated and event_id:
-            self._mark_processed(event_id=event_id, event_type=event_type)
+            if updated and event_id:
+                self._mark_processed(event_id=event_id, event_type=event_type)
 
-        return updated
+            logger.info(
+                "order_consumer_processed",
+                extra={"extra_fields": {"event_id": event_id, "event_type": event_type, "order_id": order_id, "updated": updated}},
+            )
+            return updated
 
 
 class OrderCancelledConsumer(OrderStatusConsumer):
