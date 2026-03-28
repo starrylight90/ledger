@@ -1,1 +1,8 @@
 commit.md
+
+# Python cache artifacts
+**/__pycache__/
+*.py[cod]
+
+# Local service sqlite files
+services/*/ledger_*.db

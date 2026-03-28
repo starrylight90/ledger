@@ -145,7 +145,7 @@ class NotificationConsumer:
 
         try:
             tp = TopicPartition(message.topic(), message.partition())
-            _low, high = self._consumer.get_watermark_offsets(tp, timeout=1.0)
+            _, high = self._consumer.get_watermark_offsets(tp, timeout=1.0)
             lag = max(0, int(high) - int(message.offset()) - 1)
             self._metrics.gauge_set(
                 "ledger_consumer_lag",
