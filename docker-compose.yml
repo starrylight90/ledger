@@ -2,6 +2,8 @@ services:
   redpanda:
     image: docker.redpanda.com/redpandadata/redpanda:v24.1.13
     container_name: ledger-redpanda
+    mem_limit: 1536m
+    mem_reservation: 1024m
     command:
       - redpanda
       - start
@@ -38,6 +40,8 @@ services:
   redpanda-console:
     image: docker.redpanda.com/redpandadata/console:v2.7.2
     container_name: ledger-redpanda-console
+    mem_limit: 256m
+    mem_reservation: 128m
     ports:
       - "8080:8080"
     environment:
@@ -51,6 +55,8 @@ services:
   schema-registry:
     image: confluentinc/cp-schema-registry:7.7.1
     container_name: ledger-schema-registry
+    mem_limit: 512m
+    mem_reservation: 256m
     depends_on:
       redpanda:
         condition: service_healthy
@@ -69,6 +75,8 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: ledger-postgres
+    mem_limit: 768m
+    mem_reservation: 384m
     environment:
       POSTGRES_DB: ledger
       POSTGRES_USER: ledger
@@ -87,6 +95,8 @@ services:
   prometheus:
     image: prom/prometheus:v2.54.1
     container_name: ledger-prometheus
+    mem_limit: 512m
+    mem_reservation: 256m
     ports:
       - "9090:9090"
     volumes:
@@ -101,6 +111,8 @@ services:
   grafana:
     image: grafana/grafana:11.1.4
     container_name: ledger-grafana
+    mem_limit: 384m
+    mem_reservation: 192m
     ports:
       - "3000:3000"
     environment:
