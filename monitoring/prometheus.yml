@@ -12,3 +12,33 @@ scrape_configs:
     static_configs:
       - targets:
           - redpanda:9644
+
+  - job_name: ledger-order-service
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - host.docker.internal:8000
+
+  - job_name: ledger-inventory-service
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - host.docker.internal:8001
+
+  - job_name: ledger-payment-service
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - host.docker.internal:8002
+
+  - job_name: ledger-notification-service
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - host.docker.internal:8003
+
+  - job_name: schema-registry
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - schema-registry:8081
