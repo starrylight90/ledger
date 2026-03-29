@@ -4,6 +4,7 @@ providers:
   - name: Ledger Dashboards
     orgId: 1
     folder: Ledger
+    updateIntervalSeconds: 15
     type: file
     disableDeletion: false
     editable: true
