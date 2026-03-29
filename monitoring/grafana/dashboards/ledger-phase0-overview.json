@@ -9,55 +9,105 @@
   "links": [],
   "panels": [
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 0
-      },
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0},
       "id": 1,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto"
-      },
-      "pluginVersion": "11.1.4",
-      "targets": [
-        {
-          "expr": "up{job=\"redpanda\"}",
-          "refId": "A"
-        }
-      ],
-      "title": "Redpanda Up",
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"expr": "sum(rate(ledger_publish_total{result=\"success\"}[5m]))", "refId": "A"}],
+      "title": "Publish Throughput (events/sec)",
       "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0},
+      "id": 2,
+      "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"expr": "sum(rate(ledger_consume_total{result=\"success\"}[5m]))", "refId": "A"}],
+      "title": "Consume Throughput (events/sec)",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 0},
+      "id": 3,
+      "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"expr": "sum(rate(ledger_dlq_publish_total{result=\"success\"}[5m]))", "refId": "A"}],
+      "title": "DLQ Events/sec",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 0},
+      "id": 4,
+      "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"expr": "max(ledger_consumer_lag)", "refId": "A"}],
+      "title": "Max Consumer Lag",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "ms"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6},
+      "id": 5,
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum(rate(ledger_consume_latency_ms_bucket[5m])) by (le,service))", "legendFormat": "{{service}}", "refId": "A"}
+      ],
+      "title": "p95 Consume Latency (ms)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "ms"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6},
+      "id": 6,
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum(rate(ledger_publish_latency_ms_bucket[5m])) by (le,service))", "legendFormat": "{{service}}", "refId": "A"}
+      ],
+      "title": "p95 Publish Latency (ms)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
+      "id": 7,
+      "targets": [
+        {"expr": "sum(rate(ledger_publish_total{result=\"success\"}[5m])) by (topic)", "legendFormat": "{{topic}}", "refId": "A"}
+      ],
+      "title": "Topic Publish Throughput",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
+      "id": 8,
+      "targets": [
+        {"expr": "sum(rate(ledger_consume_total{result=\"success\"}[5m])) by (topic)", "legendFormat": "{{topic}}", "refId": "A"}
+      ],
+      "title": "Topic Consume Throughput",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 22},
+      "id": 9,
+      "targets": [
+        {"expr": "up{job=~\"ledger-.*|redpanda|prometheus\"}", "legendFormat": "{{job}}", "refId": "A"}
+      ],
+      "title": "External Connection Health",
+      "type": "timeseries"
     }
   ],
   "refresh": "10s",
   "schemaVersion": 39,
   "style": "dark",
-  "tags": [
-    "ledger",
-    "phase0"
-  ],
+  "tags": ["ledger", "phase5", "observability"],
   "templating": {
     "list": [
       {
@@ -75,14 +125,11 @@
       }
     ]
   },
-  "time": {
-    "from": "now-15m",
-    "to": "now"
-  },
+  "time": {"from": "now-30m", "to": "now"},
   "timepicker": {},
   "timezone": "",
-  "title": "Ledger Phase 0 Overview",
-  "uid": "ledger-phase0",
+  "title": "Ledger Phase 5 Observability",
+  "uid": "ledger-phase5",
   "version": 1,
   "weekStart": ""
 }
