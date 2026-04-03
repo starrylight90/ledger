@@ -57,6 +57,22 @@ Phase 4 docs:
 - `docs/phase4-async-vs-rpc.md`
 - `docs/phase4-grpc-debug.md`
 
+## Phase 5 Observability Status
+
+Phase 5 upgrades observability from basic infra telemetry to service-level runtime telemetry:
+
+- `/metrics` exposed on order, inventory, payment, and notification services
+- topic-labeled publish and consume counters
+- p95-ready latency histograms for publish/consume/gRPC/HTTP surfaces
+- consumer lag gauges by topic and partition
+- DLQ publish counters and latency metrics
+- structured JSON logs with correlation-id enrichment for cross-service tracing
+
+Phase 5 docs:
+
+- `docs/phase5-observability-triage-playbook.md`
+- `docs/phase5-trace-by-correlation-id.md`
+
 ## Quick Start
 
 1. Copy environment template:
@@ -79,6 +95,25 @@ Phase 4 docs:
 - `prometheus` at `localhost:9090`
 - `grafana` at `localhost:3000`
 - `redpanda-console` at `localhost:8080`
+- `schema-registry` at `localhost:8081`
+
+## Observability Surfaces
+
+- order service ops UI: `GET /ops` on `localhost:8000`
+- service metrics:
+   - `localhost:8000/metrics`
+   - `localhost:8001/metrics`
+   - `localhost:8002/metrics`
+   - `localhost:8003/metrics`
+- Prometheus targets: `http://localhost:9090/targets`
+- Grafana dashboard UID: `ledger-phase5`
+
+Quick connectivity checks:
+
+- `Invoke-WebRequest http://localhost:9090/-/healthy`
+- `Invoke-WebRequest http://localhost:3000/api/health`
+- `Invoke-WebRequest http://localhost:8080`
+- `Invoke-WebRequest http://localhost:8081/subjects`
 
 ## Phase Progression
 
