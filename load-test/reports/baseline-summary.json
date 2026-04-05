@@ -1,0 +1,15 @@
+{
+  "scenario": "burst_orders_baseline",
+  "window": "45s",
+  "vus": 40,
+  "total_requests": 1180,
+  "http_req_failed_rate": 0.0085,
+  "http_req_duration_ms": {
+    "avg": 242.31,
+    "p95": 648.17,
+    "p99": 1112.44
+  },
+  "throughput_rps": 26.22,
+  "max_consumer_lag": 17,
+  "notes": "Baseline from local docker infra + local services with phase6 tuning enabled"
+}
