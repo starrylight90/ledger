@@ -17,6 +17,7 @@ from shared.correlation import correlation_scope, event_correlation_id
 from shared.dlq_publisher import DLQPublisher
 from shared.error_classification import FailureKind, classify_error
 from shared.event_schemas import build_event
+from shared.kafka_tuning import consumer_config
 from shared.observability import get_registry
 from shared.retry_policy import RetryExhaustedError, RetryPolicy, retry_with_backoff
 
@@ -45,14 +46,7 @@ class InventoryConsumer:
                 "confluent-kafka is required for inventory consumption. Install project dependencies first."
             ) from exc
 
-        self._consumer = Consumer(
-            {
-                "bootstrap.servers": self.broker,
-                "group.id": self.group_id,
-                "auto.offset.reset": "earliest",
-                "enable.auto.commit": False,
-            }
-        )
+        self._consumer = Consumer(consumer_config(self.broker, self.group_id))
         self._consumer.subscribe([self.topic])
         return self._consumer
 
