@@ -1,0 +1,16 @@
+{
+  "scenario": "staged_ramp_failure_mode",
+  "window": "165s",
+  "peak_vus": 45,
+  "total_requests": 3492,
+  "http_req_failed_rate": 0.0216,
+  "http_req_duration_ms": {
+    "avg": 388.93,
+    "p95": 978.52,
+    "p99": 1688.31
+  },
+  "throughput_rps": 21.16,
+  "max_consumer_lag": 43,
+  "dlq_events_total": 3,
+  "notes": "Failure-mode run with periodic forced payment failures and compensation path pressure"
+}
