@@ -6,6 +6,7 @@ from typing import Any
 
 from shared.avro_codec import AvroCodec
 from shared.observability import get_registry
+from shared.kafka_tuning import producer_config
 
 
 class KafkaProducerClient:
@@ -26,7 +27,7 @@ class KafkaProducerClient:
                 "confluent-kafka is required for payment event publishing. Install dependencies first."
             ) from exc
 
-        self._producer = Producer({"bootstrap.servers": self._broker, "acks": "all"})
+        self._producer = Producer(producer_config(self._broker))
         return self._producer
 
     def publish(self, topic: str, key: str, payload: dict[str, Any]) -> None:
