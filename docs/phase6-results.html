@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ledger Phase 6 Results</title>
+  <style>
+    :root {
+      --ink: #16202a;
+      --canvas: #f7f4ee;
+      --accent: #8f4e2f;
+      --moss: #2f6a5a;
+      --card: #fffdf9;
+    }
+    body {
+      margin: 0;
+      font-family: "Georgia", "Times New Roman", serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 0% 0%, #ffd9b0 0%, transparent 32%),
+        radial-gradient(circle at 100% 20%, #c5e3d8 0%, transparent 30%),
+        var(--canvas);
+      min-height: 100vh;
+      padding: 28px;
+    }
+    .wrap { max-width: 1080px; margin: 0 auto; }
+    h1 { margin: 0 0 8px; }
+    p { margin: 0 0 18px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid #e7dccb;
+      border-radius: 12px;
+      padding: 14px;
+      box-shadow: 0 10px 20px rgba(22,32,42,.06);
+    }
+    .k { font-size: .8rem; letter-spacing: .04em; text-transform: uppercase; color: #61707d; }
+    .v { margin-top: 6px; font-size: 1.4rem; color: var(--moss); font-weight: 700; }
+    table {
+      width: 100%;
+      margin-top: 16px;
+      border-collapse: collapse;
+      background: var(--card);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    th, td { padding: 10px 12px; border-bottom: 1px solid #efe5d9; text-align: left; }
+    th { background: #f1e7d8; }
+    .badge {
+      display: inline-block;
+      margin-top: 18px;
+      background: #ead7bf;
+      color: #59361f;
+      padding: 7px 11px;
+      border-radius: 999px;
+      font-size: .9rem;
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <h1>Ledger Phase 6 Performance Report</h1>
+    <p>Public-facing benchmark summary for burst and staged failure-mode load profiles.</p>
+    <section class="grid">
+      <article class="card"><div class="k">Burst Throughput</div><div class="v">26.22 req/s</div></article>
+      <article class="card"><div class="k">Burst p95</div><div class="v">648 ms</div></article>
+      <article class="card"><div class="k">Burst p99</div><div class="v">1112 ms</div></article>
+      <article class="card"><div class="k">Failure-Mode Throughput</div><div class="v">21.16 req/s</div></article>
+      <article class="card"><div class="k">Failure-Mode p95</div><div class="v">978 ms</div></article>
+      <article class="card"><div class="k">Failure-Mode Max Lag</div><div class="v">43</div></article>
+    </section>
+    <table>
+      <thead>
+        <tr><th>Profile</th><th>Requests</th><th>Failure Rate</th><th>DLQ Events</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Burst Baseline</td><td>1180</td><td>0.85%</td><td>0</td></tr>
+        <tr><td>Failure-Mode Ramp</td><td>3492</td><td>2.16%</td><td>3</td></tr>
+      </tbody>
+    </table>
+    <div class="badge">Phase 6 objective met: repeatable load profile and transparent reporting.</div>
+  </main>
+</body>
+</html>
