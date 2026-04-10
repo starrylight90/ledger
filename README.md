@@ -125,6 +125,129 @@ Quick connectivity checks:
 - Phase 5: observability hardening
 - Phase 6: load testing and release documentation
 
+## Phase-By-Phase Build Story
+
+This section explains what was built, why it was built, and how to inspect it.
+
+### Phase 0: Environment Scaffolding
+
+What:
+
+- Dockerized Redpanda, Postgres, Prometheus, and Grafana base infrastructure.
+
+Why:
+
+- Establish reproducible local infrastructure for event flow and operational visibility.
+
+How to inspect:
+
+- Run `docker compose up -d`
+- Open Prometheus targets view.
+
+![Phase 0 - Prometheus Targets](docs/assets/phase0-prometheus-targets.png)
+
+### Phase 1: Core Event Pipeline
+
+What:
+
+- `POST /orders` ingress and order-created event publication.
+
+Why:
+
+- Introduce the primary event-driven flow from API boundary to broker.
+
+How to inspect:
+
+- Open order-service OpenAPI docs and submit sample orders.
+
+![Phase 1 - Order OpenAPI](docs/assets/phase1-order-openapi.png)
+
+### Phase 2: Saga Choreography
+
+What:
+
+- Payment + compensation path and terminal notification events.
+
+Why:
+
+- Ensure distributed transaction behavior is explicit and recoverable.
+
+How to inspect:
+
+- Use Redpanda Console to watch `order.created`, `inventory.*`, `payment.*`, and `order.cancelled` topics.
+
+![Phase 2 - Redpanda Console](docs/assets/phase2-redpanda-console.png)
+
+### Phase 3: Reliability and Schema Governance
+
+What:
+
+- Retry policies, DLQ handling, and schema validation for event contracts.
+
+Why:
+
+- Prevent silent corruption and provide deterministic failure routing.
+
+How to inspect:
+
+- Inspect Schema Registry subjects and the phase 3 runbooks.
+
+![Phase 3 - Schema Registry](docs/assets/phase3-schema-registry.png)
+
+### Phase 4: gRPC Sync Boundary
+
+What:
+
+- Synchronous inventory admission precheck before asynchronous order publication.
+
+Why:
+
+- Fast fail for insufficient inventory while preserving async downstream choreography.
+
+How to inspect:
+
+- Open order ops surface and test `POST /orders` behavior for available and unavailable stock.
+
+![Phase 4 - Order Ops](docs/assets/phase4-order-ops.png)
+
+### Phase 5: Observability Hardening
+
+What:
+
+- Service-level metrics, lag gauges, latency histograms, and correlation-aware JSON logs.
+
+Why:
+
+- Make distributed execution measurable and debuggable under stress.
+
+How to inspect:
+
+- Open Grafana and query dashboard UID `ledger-phase5`.
+
+![Phase 5 - Grafana](docs/assets/phase5-grafana.png)
+
+### Phase 6: Load Testing and Public Docs
+
+What:
+
+- k6 burst + staged ramp profiles, benchmark summaries, known limitations, and release checklist.
+
+Why:
+
+- Provide transparent performance evidence and public-repo onboarding clarity.
+
+How to inspect:
+
+- Run scripts in `load-test/README.md` and compare outputs with benchmark docs.
+
+![Phase 6 - Results Snapshot](docs/assets/phase6-results.png)
+
+Phase 6 support docs:
+
+- `docs/phase6-benchmark-results.md`
+- `docs/phase6-known-limitations.md`
+- `docs/phase6-release-checklist.md`
+
 ## Troubleshooting
 
 - If `docker compose up` fails due to occupied ports, stop conflicting services or map alternate ports.
